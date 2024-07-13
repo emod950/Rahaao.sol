@@ -1,0 +1,70 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract RAHAAO is ERC20, Ownable {
+    uint256 public halvingInterval = 4 * 365 * 24 * 60 * 60; // 4 years in seconds
+    uint256 public nextHalvingTime;
+    uint256 public initialSupply = 21000000 * (10 ** decimals());
+    uint256 public rewardPerBlock;
+
+    // Fees
+    uint256 public reflectionFee = 1; // 1%
+    uint256 public marketingFee = 1; // 1%
+    uint256 public liquidityFee = 1; // 1%
+    uint256 public burnFee = 1; // 1%
+    uint256 public ownerEarnedFee = 1; // 1%
+
+    // Addresses
+    address public marketingWallet = 0x03C6Eb5594b39Be2Fb620Ec643922dD28ba9B6cf;
+    address public liquidityWallet = 0xea27D3564D10869217C2e940b91F78B3F1029784;
+    address public burnWallet = 0x000000000000000000000000000000000000dEaD;
+    address public ownerEarnedWallet = owner();
+
+    constructor() ERC20("RAHAAO", "RAH") Ownable(msg.sender) {
+        _mint(msg.sender, initialSupply);
+        nextHalvingTime = block.timestamp + halvingInterval;
+        rewardPerBlock = initialSupply / 1000; // Arbitrary starting point
+    }
+
+    function transfer(address recipient, uint256 amount) public override returns (bool) {
+        _customTransfer(_msgSender(), recipient, amount);
+        return true;
+    }
+
+    function transferFrom(address sender, address recipient, uint256 amount) public override returns (bool) {
+        _spendAllowance(sender, _msgSender(), amount);
+        _customTransfer(sender, recipient, amount);
+        return true;
+    }
+
+    function _customTransfer(address sender, address recipient, uint256 amount) internal {
+        uint256 reflectionAmount = (amount * reflectionFee) / 100;
+        uint256 marketingAmount = (amount * marketingFee) / 100;
+        uint256 liquidityAmount = (amount * liquidityFee) / 100;
+        uint256 burnAmount = (amount * burnFee) / 100;
+        uint256 ownerEarnedAmount = (amount * ownerEarnedFee) / 100;
+
+        uint256 transferAmount = amount - reflectionAmount - marketingAmount - liquidityAmount - burnAmount - ownerEarnedAmount;
+
+        _transfer(sender, recipient, transferAmount);
+        _transfer(sender, marketingWallet, marketingAmount);
+        _transfer(sender, liquidityWallet, liquidityAmount);
+        _transfer(sender, burnWallet, burnAmount);
+        _transfer(sender, ownerEarnedWallet, ownerEarnedAmount);
+
+        _reflect(reflectionAmount);
+    }
+
+    function _reflect(uint256 reflectionAmount) private {
+        // Implement reflection logic here
+    }
+
+    function _mintHalvingReward() private {
+        require(block.timestamp >= nextHalvingTime, "Halving time has not yet reached");
+        nextHalvingTime += halvingInterval;
+        rewardPerBlock /= 2;
+    }
+}
